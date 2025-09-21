@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Prank: Jumpscare</title>
+  <style>
+    :root{--bg:#e9eef5}
+    html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg)}
+    .wrapper{height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:20px}
+    .card{background:white;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12);padding:28px;max-width:720px;width:100%;text-align:center}
+    h1{margin:0 0 8px;font-size:22px}
+    p{color:#444;margin:0 0 16px}
+    button{padding:10px 16px;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}
+
+    /* Jumpscare full-screen */
+    .scare{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000;color:#fff;z-index:9999;transform:scale(1);transition:transform .12s ease}
+    .scare.hidden{display:none}
+    .skull{width:68vmin;max-width:980px;height:auto;filter:drop-shadow(0 16px 40px rgba(0,0,0,.6));}
+    /* quick flash effect */
+    .flash{position:fixed;inset:0;background:#fff;opacity:0;z-index:10000;pointer-events:none}
+
+    /* small hint/footer */
+    .hint{font-size:13px;color:#666;margin-top:12px}
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <h1>M xong m rồi</h1>
+      <p>1 + 1 .</p>
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button id="startBtn">1 </button>
+        <button id="autoBtn">2</button>
+      </div>
+      <div class="hint">Lưu ý: WEB KHÔNG DÀNH CHO NGƯỜI NGU.</div>
+    </div>
+  </div>
+
+  <!-- jumpscare layer -->
+  <div id="scare" class="scare hidden" aria-hidden="true">
+    <!-- simple skull SVG (inline) -->
+    <svg class="skull" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100%" height="100%" fill="#000" />
+      <g transform="translate(256,256) scale(1)">
+        <path d="M-140,-10 a120,100 0 1,1 280,0 v70 a80,80 0 0,1 -80,80 h-120 a80,80 0 0,1 -80,-80z" fill="#fff"/>
+        <ellipse cx="-50" cy="30" rx="28" ry="34" fill="#000" />
+        <ellipse cx="50" cy="30" rx="28" ry="34" fill="#000" />
+        <rect x="-42" y="85" width="84" height="14" rx="7" fill="#000" />
+        <path d="M-80,10 q80,40 160,0" stroke="#000" stroke-width="12" fill="none" stroke-linecap="round"/>
+      </g>
+    </svg>
+  </div>
+  <div id="flash" class="flash"></div>
+
+  <script>
+    const startBtn = document.getElementById('startBtn');
+    const autoBtn = document.getElementById('autoBtn');
+    const scare = document.getElementById('scare');
+    const flash = document.getElementById('flash');
+
+    async function playScream() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const master = ctx.createGain();
+        master.gain.value = 0.0001; 
+        master.connect(ctx.destination);
+
+        const bufferSize = ctx.sampleRate * 0.6; 
+        const noise = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = noise.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-3 * i / bufferSize);
+        }
+        const noiseSrc = ctx.createBufferSource();
+        noiseSrc.buffer = noise;
+        const noiseGain = ctx.createGain();
+        noiseGain.gain.value = 1.5; // tăng âm lượng noise
+        noiseSrc.connect(noiseGain);
+        noiseGain.connect(master);
+
+        const osc = ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.value = 900;
+        const oscGain = ctx.createGain();
+        oscGain.gain.value = 0.0;
+        osc.connect(oscGain);
+        oscGain.connect(master);
+
+        master.gain.setValueAtTime(0.0001, ctx.currentTime);
+        master.gain.exponentialRampToValueAtTime(2.0, ctx.currentTime + 0.06); // tăng max volume
+        master.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.7);
+
+        oscGain.gain.setValueAtTime(0.0, ctx.currentTime);
+        oscGain.gain.linearRampToValueAtTime(1.2, ctx.currentTime + 0.05); // tăng gain
+        oscGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+
+        noiseSrc.start();
+        osc.start();
+
+        noiseSrc.stop(ctx.currentTime + 0.7);
+        osc.stop(ctx.currentTime + 0.7);
+
+        if (ctx.state === 'suspended') await ctx.resume();
+      } catch (e) {
+        console.warn('Audio failed:', e);
+      }
+    }
+
+    function showScare() {
+      flash.style.opacity = '1';
+      setTimeout(()=> flash.style.opacity = '0', 80);
+      scare.classList.remove('hidden');
+      scare.setAttribute('aria-hidden','false');
+      scare.style.transform = 'scale(1.04)';
+      setTimeout(()=>scare.style.transform='scale(1)',160);
+      try { navigator.vibrate && navigator.vibrate([200,60,150]); } catch(e){}
+    }
+
+    async function doJumpscare() {
+      showScare();
+      await playScream();
+    }
+
+    startBtn.addEventListener('click', async ()=>{
+      await doJumpscare();
+    });
+
+    autoBtn.addEventListener('click', ()=>{
+      document.body.querySelector('.card p').textContent = 'Đang kiểm tra...';
+      setTimeout(()=> doJumpscare(), 900);
+    });
+
+    window.addEventListener('keydown', (e)=>{ if (e.key.toLowerCase()==='j') doJumpscare(); });
+
+    document.querySelector('.card').addEventListener('click', ()=> startBtn.focus());
+  </script>
+</body>
+</html>
